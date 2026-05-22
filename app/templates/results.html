@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Results - SpotifyWebQuiz{% endblock %}
+
+{% block content %}
+<div class="min-h-screen p-6 md:p-12 relative overflow-hidden">
+    <!-- Ambient background -->
+    <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-spotify/10 rounded-full blur-[150px] pointer-events-none"></div>
+
+    <div class="relative z-10 max-w-4xl mx-auto">
+        <!-- Header -->
+        <div class="text-center mb-12">
+            <h1 class="text-5xl md:text-6xl font-black tracking-tight mb-4 bg-gradient-to-r from-white via-spotify to-emerald-400 bg-clip-text text-transparent">
+                Game Over
+            </h1>
+            <div class="flex items-center justify-center gap-8 mt-6">
+                <div class="text-center">
+                    <div class="text-4xl font-black text-white mb-1">{{ score }}</div>
+                    <div class="text-sm text-gray-400 uppercase tracking-wider">Score</div>
+                </div>
+                <div class="w-px h-12 bg-white/10"></div>
+                <div class="text-center">
+                    <div class="text-4xl font-black text-spotify mb-1">{{ accuracy }}%</div>
+                    <div class="text-sm text-gray-400 uppercase tracking-wider">Accuracy</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+            <!-- Your Anthem -->
+            <div class="p-6 rounded-2xl bg-white/5 backdrop-blur-xl border border-spotify/30 hover:border-spotify/60 transition-all duration-300">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 rounded-full bg-spotify/20 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-spotify" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-sm text-gray-400 uppercase tracking-wider">Your Anthem</h3>
+                        <p class="text-xs text-gray-500">Fastest correct guess</p>
+                    </div>
+                </div>
+                {% if anthem %}
+                <div class="flex items-center gap-4">
+                    <div class="w-20 h-20 rounded-xl overflow-hidden bg-zinc-800 flex-shrink-0">
+                        {% if anthem.album_cover %}
+                        <img src="{{ anthem.album_cover }}" alt="{{ anthem.track_name }}" class="w-full h-full object-cover">
+                        {% else %}
+                        <div class="w-full h-full flex items-center justify-center">
+                            <svg class="w-8 h-8 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                            </svg>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="min-w-0">
+                        <h4 class="font-bold text-white truncate">{{ anthem.track_name }}</h4>
+                        <p class="text-sm text-gray-400 truncate">{{ anthem.artist_name }}</p>
+                        <p class="text-xs text-spotify mt-1">{{ (anthem.elapsed_ms / 1000) | round(2) }}s reaction</p>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-gray-500 text-sm">No correct answers this round.</p>
+                {% endif %}
+            </div>
+
+            <!-- Your Kryptonite -->
+            <div class="p-6 rounded-2xl bg-white/5 backdrop-blur-xl border border-red-500/30 hover:border-red-500/60 transition-all duration-300">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-sm text-gray-400 uppercase tracking-wider">Your Kryptonite</h3>
+                        <p class="text-xs text-gray-500">Toughest track</p>
+                    </div>
+                </div>
+                {% if kryptonite %}
+                <div class="flex items-center gap-4">
+                    <div class="w-20 h-20 rounded-xl overflow-hidden bg-zinc-800 flex-shrink-0">
+                        {% if kryptonite.album_cover %}
+                        <img src="{{ kryptonite.album_cover }}" alt="{{ kryptonite.track_name }}" class="w-full h-full object-cover">
+                        {% else %}
+                        <div class="w-full h-full flex items-center justify-center">
+                            <svg class="w-8 h-8 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                            </svg>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="min-w-0">
+                        <h4 class="font-bold text-white truncate">{{ kryptonite.track_name }}</h4>
+                        <p class="text-sm text-gray-400 truncate">{{ kryptonite.artist_name }}</p>
+                        <p class="text-xs text-red-400 mt-1">{{ (kryptonite.elapsed_ms / 1000) | round(2) }}s struggle</p>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-gray-500 text-sm">No wrong answers — flawless victory!</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Round History -->
+        <div class="mb-12">
+            <h3 class="text-lg font-bold text-white mb-4">Round History</h3>
+            <div class="space-y-2">
+                {% for result in round_results %}
+                <div class="flex items-center gap-4 p-3 rounded-xl bg-white/5 border border-white/5 {% if result.correct %}border-l-4 border-l-spotify{% else %}border-l-4 border-l-red-500{% endif %}">
+                    <div class="w-12 h-12 rounded-lg overflow-hidden bg-zinc-800 flex-shrink-0">
+                        {% if result.album_cover %}
+                        <img src="{{ result.album_cover }}" alt="{{ result.track_name }}" class="w-full h-full object-cover">
+                        {% endif %}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="font-semibold text-white truncate">{{ result.track_name }}</div>
+                        <div class="text-xs text-gray-400">{{ result.artist_name }}</div>
+                    </div>
+                    <div class="text-right flex-shrink-0">
+                        {% if result.correct %}
+                        <div class="text-spotify font-bold">+{{ result.points_earned }}</div>
+                        <div class="text-xs text-gray-500">{{ (result.elapsed_ms / 1000) | round(2) }}s</div>
+                        {% else %}
+                        <div class="text-red-400 font-bold">Miss</div>
+                        <div class="text-xs text-gray-500">{{ (result.elapsed_ms / 1000) | round(2) }}s</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Play Again -->
+        <div class="text-center">
+            <a href="/"
+               class="inline-flex items-center gap-3 px-8 py-4 bg-spotify hover:bg-spotify-dark text-black font-bold text-lg rounded-full transition-all duration-300 shadow-[0_0_30px_rgba(29,185,84,0.3)] hover:shadow-[0_0_50px_rgba(29,185,84,0.5)] hover:scale-105 animate-pulse">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                Play Again
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

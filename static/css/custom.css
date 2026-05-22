@@ -1,0 +1,79 @@
+/* SpotifyWebQuiz - Cyber-Emerald Custom Animations */
+
+/* Equalizer bar animation */
+.eq-animate {
+    animation: eq-bounce 0.5s ease-in-out infinite alternate;
+}
+
+.eq-panic {
+    animation-duration: 0.25s !important;
+}
+
+@keyframes eq-bounce {
+    0% { height: 8px; }
+    100% { height: 32px; }
+}
+
+/* Shake animation for wrong answer */
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+    20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+.animate-shake {
+    animation: shake 0.5s ease-in-out;
+}
+
+/* Fever mode pulse */
+.fever-mode {
+    animation: fever-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes fever-pulse {
+    0% { box-shadow: inset 0 0 40px rgba(29, 185, 84, 0.2); }
+    100% { box-shadow: inset 0 0 80px rgba(29, 185, 84, 0.5); }
+}
+
+/* Particle burst effect (simplified CSS version) */
+@keyframes particle-burst {
+    0% {
+        transform: scale(0);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(2);
+        opacity: 0;
+    }
+}
+
+/* Smooth card transitions */
+button {
+    will-change: transform, box-shadow;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #050505;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #1DB954;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #169c45;
+}
+
+/* Glassmorphism enhancement */
+.glass {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
