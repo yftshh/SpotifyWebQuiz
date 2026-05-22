@@ -31,6 +31,7 @@ class GameSession:
     round_results: list[RoundResult] = field(default_factory=list)
     current_target_id: str | None = None
     current_target_uri: str | None = None
+    current_target_preview_url: str | None = None
     current_options: list[dict[str, Any]] = field(default_factory=list)
     round_start_time_ms: int = 0
 

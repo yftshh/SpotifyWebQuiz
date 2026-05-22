@@ -18,6 +18,7 @@ def generate_round(game: GameSession) -> dict[str, Any]:
     game.played_track_ids.append(target["id"])
     game.current_target_id = target["id"]
     game.current_target_uri = target["uri"]
+    game.current_target_preview_url = target.get("preview_url")
     game.current_round += 1
 
     # Select 3 unique decoys
@@ -39,6 +40,7 @@ def generate_round(game: GameSession) -> dict[str, Any]:
         "round": game.current_round,
         "total_rounds": game.total_rounds,
         "target_uri": target["uri"],
+        "target_preview_url": target.get("preview_url"),
         "options": game.current_options,
         "combo": game.combo,
         "score": game.score,

@@ -3,13 +3,8 @@
 {% block title %}Game Arena - SpotifyWebQuiz{% endblock %}
 
 {% block head %}
-<meta name="spotify-token" content="{{ access_token }}">
 <script type="application/json" id="game-data">
-{
-    "roundData": {{ round_data | tojson | safe }},
-    "score": {{ round_data.score | tojson | safe }},
-    "combo": {{ round_data.combo | tojson | safe }}
-}
+{{ round_data | tojson | safe }}
 </script>
 {% endblock %}
 
@@ -38,8 +33,26 @@
                 </svg>
             </a>
             <div>
-                <div class="text-sm text-gray-400">Round <span x-text="roundData.round"></span>/<span x-text="roundData.total_rounds"></span></div>
+                <div class="text-sm text-gray-400">Round <span x-text="roundData.round || 0"></span>/<span x-text="roundData.total_rounds || 0"></span></div>
                 <div class="text-2xl font-black text-white tracking-tight" x-text="score"></div>
+            </div>
+        </div>
+
+        <!-- Audio Controls -->
+        <div class="flex items-center gap-3">
+            <button @click="togglePlayPause()" class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                <svg x-show="!isPlaying" class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z"/>
+                </svg>
+                <svg x-show="isPlaying" class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                </svg>
+            </button>
+            <div class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                </svg>
+                <input type="range" min="0" max="1" step="0.01" x-model="volume" @input="setVolume()" class="w-20 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-spotify">
             </div>
         </div>
 
@@ -97,8 +110,18 @@
         </div>
     </div>
 
+    <!-- No Options Error -->
+    <div x-show="!roundData.options || roundData.options.length === 0" class="relative z-10 flex-1 flex items-center justify-center px-6">
+        <div class="text-center">
+            <div class="text-6xl mb-4">🎵</div>
+            <div class="text-xl text-white font-bold mb-2">No tracks available</div>
+            <div class="text-gray-400 mb-4">This playlist doesn't have enough tracks with previews.</div>
+            <a href="/" class="inline-block px-6 py-3 bg-spotify text-black font-bold rounded-full hover:bg-spotify/80 transition-colors">Back to Dashboard</a>
+        </div>
+    </div>
+
     <!-- Cards Grid -->
-    <div class="relative z-10 flex-1 px-6 pb-8">
+    <div x-show="roundData.options && roundData.options.length > 0" class="relative z-10 flex-1 px-6 pb-8">
         <div class="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-4">
             <template x-for="option in roundData.options" :key="option.id">
                 <button
@@ -162,28 +185,28 @@
             <div x-show="!lastResult.correct" class="mb-4">
                 <div class="text-6xl mb-2">❌</div>
                 <div class="text-3xl font-black text-red-500">Wrong!</div>
-                <div class="text-gray-300 mt-2" x-text="lastResult.track_name + ' — ' + lastResult.artist_name"></div>
+                <div class="text-gray-300 mt-2" x-text="(lastResult.track_name || 'Unknown') + ' — ' + (lastResult.artist_name || 'Unknown')"></div>
             </div>
             <div class="text-sm text-gray-400 animate-pulse">Next round starting...</div>
         </div>
     </div>
 
-    <!-- SDK Error Toast -->
-    <div x-show="sdkError" x-transition class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-full bg-red-500/20 border border-red-500/50 text-red-300 text-sm">
-        <span x-text="sdkError"></span>
+    <!-- Audio Error Toast -->
+    <div x-show="audioError" x-transition class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-full bg-red-500/20 border border-red-500/50 text-red-300 text-sm">
+        <span x-text="audioError"></span>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="https://sdk.scdn.co/spotify-player.js"></script>
 <script>
 function gameApp() {
+    const gameData = JSON.parse(document.getElementById('game-data').textContent);
     return {
         // State
-        roundData: JSON.parse(document.getElementById('game-data').textContent).roundData,
-        score: JSON.parse(document.getElementById('game-data').textContent).score,
-        combo: JSON.parse(document.getElementById('game-data').textContent).combo,
+        roundData: gameData,
+        score: gameData.score,
+        combo: gameData.combo,
         timer: 15.0,
         isPlaying: false,
         roundLocked: false,
@@ -195,105 +218,64 @@ function gameApp() {
         panicMode: false,
         showResultOverlay: false,
         lastResult: {},
-        sdkError: null,
-        deviceId: null,
-        player: null,
-        token: document.querySelector('meta[name="spotify-token"]').getAttribute('content'),
+        audioError: null,
+        audioPlayer: null,
         timerInterval: null,
-        stateCheckInterval: null,
         roundStartTime: 0,
+        volume: 0.5,
 
         initGame() {
-            this.initSpotifyPlayer();
+            this.playPreview();
             this.startRoundTimer();
         },
 
-        initSpotifyPlayer() {
-            window.onSpotifyWebPlaybackSDKReady = () => {
-                this.player = new Spotify.Player({
-                    name: 'SpotifyWebQuiz Player',
-                    getOAuthToken: cb => { cb(this.token); },
-                    volume: 0.5
-                });
-
-                this.player.addListener('ready', ({ device_id }) => {
-                    this.deviceId = device_id;
-                    // Safe timeout before first playback
-                    setTimeout(() => {
-                        this.playTrack();
-                    }, 1000);
-                });
-
-                this.player.addListener('not_ready', ({ device_id }) => {
-                    this.sdkError = 'Player went offline. Please refresh.';
-                });
-
-                this.player.addListener('initialization_error', ({ message }) => {
-                    this.sdkError = 'Init error: ' + message;
-                });
-
-                this.player.addListener('authentication_error', ({ message }) => {
-                    this.sdkError = 'Auth error: ' + message;
-                    // Try refreshing token
-                    this.refreshToken();
-                });
-
-                this.player.addListener('playback_error', ({ message }) => {
-                    this.sdkError = 'Playback error: ' + message;
-                });
-
-                this.player.addListener('player_state_changed', state => {
-                    this.isPlaying = state && !state.paused;
-                });
-
-                this.player.connect();
-
-                // Poll for state changes as fallback
-                this.stateCheckInterval = setInterval(async () => {
-                    const state = await this.player.getCurrentState();
-                    this.isPlaying = state && !state.paused;
-                }, 500);
-            };
+        playPreview() {
+            if (!this.roundData.target_preview_url) {
+                this.audioError = 'No preview available for this track.';
+                return;
+            }
+            if (this.audioPlayer) {
+                this.audioPlayer.pause();
+                this.audioPlayer = null;
+            }
+            this.audioPlayer = new Audio(this.roundData.target_preview_url);
+            this.audioPlayer.volume = this.volume;
+            this.audioPlayer.play().then(() => {
+                this.isPlaying = true;
+                if (this.roundStartTime === 0) {
+                    this.roundStartTime = Date.now();
+                }
+            }).catch(err => {
+                this.audioError = 'Playback failed: ' + err.message;
+            });
+            this.audioPlayer.addEventListener('ended', () => {
+                this.isPlaying = false;
+            });
+            this.audioPlayer.addEventListener('pause', () => {
+                this.isPlaying = false;
+            });
         },
 
-        async playTrack() {
-            if (!this.deviceId || !this.roundData.target_uri) return;
-            try {
-                const response = await fetch('https://api.spotify.com/v1/me/player/play?device_id=' + this.deviceId, {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': 'Bearer ' + this.token,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ uris: [this.roundData.target_uri] })
+        togglePlayPause() {
+            if (!this.audioPlayer) {
+                this.playPreview();
+                return;
+            }
+            if (this.audioPlayer.paused) {
+                this.audioPlayer.play().then(() => {
+                    this.isPlaying = true;
+                }).catch(err => {
+                    this.audioError = 'Playback failed: ' + err.message;
                 });
-                if (response.status === 401) {
-                    await this.refreshToken();
-                    // Retry once
-                    await fetch('https://api.spotify.com/v1/me/player/play?device_id=' + this.deviceId, {
-                        method: 'PUT',
-                        headers: {
-                            'Authorization': 'Bearer ' + this.token,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ uris: [this.roundData.target_uri] })
-                    });
-                }
-                this.roundStartTime = Date.now();
-            } catch (err) {
-                this.sdkError = 'Failed to start playback: ' + err.message;
+            } else {
+                this.audioPlayer.pause();
+                this.isPlaying = false;
             }
         },
 
-        async refreshToken() {
-            try {
-                const res = await fetch('/api/refresh-token', { method: 'POST' });
-                const data = await res.json();
-                this.token = data.access_token;
-                // Update meta tag for future rounds
-                document.querySelector('meta[name="spotify-token"]').setAttribute('content', this.token);
-            } catch (err) {
-                this.sdkError = 'Token refresh failed. Please re-login.';
+        setVolume() {
+            if (this.audioPlayer) {
+                this.audioPlayer.volume = this.volume;
             }
         },
 
@@ -325,8 +307,8 @@ function gameApp() {
             clearInterval(this.timerInterval);
 
             // Pause playback immediately
-            if (this.player) {
-                await this.player.pause();
+            if (this.audioPlayer) {
+                this.audioPlayer.pause();
             }
 
             const elapsed = Math.min(15000, Date.now() - this.roundStartTime);
@@ -343,15 +325,15 @@ function gameApp() {
                 const data = await res.json();
                 this.handleResult(data);
             } catch (err) {
-                this.sdkError = 'Failed to validate answer.';
+                this.audioError = 'Failed to validate answer.';
                 this.roundLocked = false;
             }
         },
 
         async handleTimeout() {
             this.roundLocked = true;
-            if (this.player) {
-                await this.player.pause();
+            if (this.audioPlayer) {
+                this.audioPlayer.pause();
             }
             // Send empty choice to record timeout
             try {
@@ -366,11 +348,26 @@ function gameApp() {
                 const data = await res.json();
                 this.handleResult(data);
             } catch (err) {
-                this.sdkError = 'Timeout handling failed.';
+                this.audioError = 'Timeout handling failed.';
             }
         },
 
         handleResult(data) {
+            // Server recovered round (no active round existed); reload page to get fresh state
+            if (data.recovered) {
+                this.roundData = data;
+                this.score = data.score;
+                this.combo = data.combo;
+                this.revealed = false;
+                this.correctId = null;
+                this.selectedId = null;
+                this.roundLocked = false;
+                this.showResultOverlay = false;
+                this.startRoundTimer();
+                this.playPreview();
+                return;
+            }
+
             this.revealed = true;
             this.correctId = data.correct_id;
             this.score = data.total_score;
@@ -396,6 +393,8 @@ function gameApp() {
             this.selectedId = null;
             this.roundLocked = false;
             this.panicMode = false;
+            this.roundStartTime = 0;
+            this.audioError = null;
 
             try {
                 const res = await fetch('/api/next-round');
@@ -405,10 +404,12 @@ function gameApp() {
                     return;
                 }
                 this.roundData = data;
+                this.score = data.score;
+                this.combo = data.combo;
                 this.startRoundTimer();
-                this.playTrack();
+                this.playPreview();
             } catch (err) {
-                this.sdkError = 'Failed to load next round.';
+                this.audioError = 'Failed to load next round.';
             }
         },
 

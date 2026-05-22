@@ -17,9 +17,6 @@ SCOPES = " ".join(
         "user-read-private",
         "user-read-email",
         "playlist-read-private",
-        "user-read-playback-state",
-        "streaming",
-        "user-modify-playback-state",
         "user-library-read",
     ]
 )
@@ -139,12 +136,17 @@ def _parse_track_item(item: dict[str, Any]) -> dict[str, Any] | None:
     artists = track.get("artists", [])
     artist_name = artists[0]["name"] if artists else "Unknown Artist"
 
+    preview_url = track.get("preview_url")
+    if not preview_url:
+        return None
+
     return {
         "id": track["id"],
         "uri": uri,
         "name": name,
         "artist": artist_name,
         "album_cover": cover_url,
+        "preview_url": preview_url,
     }
 
 
@@ -188,7 +190,7 @@ async def get_liked_tracks(access_token: str) -> list[dict[str, Any]]:
     """Fetch user's liked songs (capped at _MAX_TRACKS)."""
     tracks: list[dict[str, Any]] = []
     offset = 0
-    limit = 100
+    limit = 50
 
     while len(tracks) < _MAX_TRACKS:
         data = await spotify_api_get(
@@ -212,18 +214,3 @@ async def get_liked_tracks(access_token: str) -> list[dict[str, Any]]:
         offset += limit
 
     return tracks
-
-
-async def start_playback(access_token: str, device_id: str, track_uri: str) -> None:
-    """Start playback of a track on the given device via Spotify Web API."""
-    async with httpx.AsyncClient() as client:
-        response = await client.put(
-            f"{SPOTIFY_API_BASE}/me/player/play",
-            params={"device_id": device_id},
-            json={"uris": [track_uri]},
-            headers={"Authorization": f"Bearer {access_token}"},
-            timeout=30.0,
-        )
-        # 204 No Content is success; 404 may mean device not found yet
-        if response.status_code not in (204, 200):
-            response.raise_for_status()

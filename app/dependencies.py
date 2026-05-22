@@ -49,6 +49,7 @@ def get_game_session(request: Request) -> GameSession:
         ],
         current_target_id=game_data.get("current_target_id"),
         current_target_uri=game_data.get("current_target_uri"),
+        current_target_preview_url=game_data.get("current_target_preview_url"),
         current_options=game_data.get("current_options", []),
         round_start_time_ms=game_data.get("round_start_time_ms", 0),
     )
@@ -79,6 +80,7 @@ def save_game_session(request: Request, game: GameSession) -> None:
         ],
         "current_target_id": game.current_target_id,
         "current_target_uri": game.current_target_uri,
+        "current_target_preview_url": game.current_target_preview_url,
         "current_options": game.current_options,
         "round_start_time_ms": game.round_start_time_ms,
     }

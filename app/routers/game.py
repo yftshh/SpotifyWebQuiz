@@ -1,8 +1,13 @@
 """Game router: game arena, answer validation, and results."""
 
+import logging
+import random
+
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+
+logger = logging.getLogger(__name__)
 
 from app.dependencies import (
     get_session,
@@ -76,21 +81,28 @@ async def game_arena(request: Request, playlist_id: str) -> HTMLResponse | Redir
                 detail="Playlist must contain at least 4 valid tracks.",
             )
 
+        # Cap tracks stored in session to avoid cookie overflow
+        if len(tracks) > 100:
+            tracks = random.sample(tracks, 100)
+
         game = GameSession(
             playlist_id=playlist_id,
             tracks=tracks,
             total_rounds=min(10, len(tracks)),
         )
 
-    # Generate the current round data (or first round if new)
-    if game.current_round == 0 or not game.current_target_id:
+    # Generate the current round data (or first round if new / corrupted)
+    if game.current_round == 0 or not game.current_target_id or not game.current_options:
+        logger.info("Generating new round for playlist=%s round=%s target_id=%s", playlist_id, game.current_round, game.current_target_id)
         round_data = generate_round(game)
     else:
         # Resume existing round
+        logger.info("Resuming round for playlist=%s round=%s target_id=%s", playlist_id, game.current_round, game.current_target_id)
         round_data = {
             "round": game.current_round,
             "total_rounds": game.total_rounds,
             "target_uri": game.current_target_uri,
+            "target_preview_url": game.current_target_preview_url,
             "options": game.current_options,
             "combo": game.combo,
             "score": game.score,
@@ -102,7 +114,6 @@ async def game_arena(request: Request, playlist_id: str) -> HTMLResponse | Redir
         request,
         "game.html",
         {
-            "access_token": access_token,
             "round_data": round_data,
         },
     )
@@ -116,8 +127,16 @@ async def check_answer(request: Request) -> JSONResponse:
     elapsed_ms: int = body.get("elapsed_ms", 15000)
 
     game = get_game_session(request)
+    logger.info("check-answer: round=%s target_id=%s tracks=%s played=%s", game.current_round, game.current_target_id, len(game.tracks), len(game.played_track_ids))
 
     if not game.current_target_id:
+        # Attempt to recover if tracks exist but round wasn't initialized
+        if game.tracks and len(game.tracks) >= 4:
+            logger.warning("No active round but tracks exist; regenerating round")
+            round_data = generate_round(game)
+            save_game_session(request, game)
+            # Return current round data so client can retry
+            return JSONResponse({**round_data, "game_over": False, "recovered": True})
         raise HTTPException(status_code=400, detail="No active round")
 
     result = process_answer(game, choice_id, elapsed_ms)
