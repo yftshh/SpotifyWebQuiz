@@ -2,12 +2,12 @@
 
 import logging
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from app.dependencies import get_session, require_auth, token_needs_refresh
-from app.services.spotify import get_user_playlists, refresh_access_token, SpotifyQuotaError, SpotifyAuthError
+from app.dependencies import get_session, token_needs_refresh
+from app.services.spotify import get_user_playlists, refresh_access_token, SpotifyQuotaError, SpotifyAuthError, get_liked_tracks_count
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -25,7 +25,6 @@ async def dashboard(request: Request) -> HTMLResponse | RedirectResponse:
         return templates.TemplateResponse(request, "login.html", {})
 
     # Refresh token if needed before fetching playlists
-    session_modified = False
     if token_needs_refresh(session):
         refresh_token = session.get("refresh_token")
         if refresh_token:
@@ -35,8 +34,7 @@ async def dashboard(request: Request) -> HTMLResponse | RedirectResponse:
                 access_token = new_access
                 session["access_token"] = new_access
                 if token_data.get("refresh_token"):
-                    session["refresh_token"] = token_data["refresh_token"]
-                session_modified = True
+                    session["refresh_token"] = token_data.get("refresh_token")
 
     try:
         playlists = await get_user_playlists(access_token)
@@ -52,7 +50,7 @@ async def dashboard(request: Request) -> HTMLResponse | RedirectResponse:
         logger.warning("Spotify auth error (missing scope or expired token): %s", exc)
         # Force re-authorisation so user can grant required scopes
         return RedirectResponse(url="/login")
-    except Exception as exc:
+    except Exception:
         logger.exception("Failed to fetch user playlists")
         # Unexpected error — keep session and show generic error page
         return templates.TemplateResponse(
@@ -61,6 +59,21 @@ async def dashboard(request: Request) -> HTMLResponse | RedirectResponse:
             {"detail": "Unable to load playlists. Please try again later."},
             status_code=500,
         )
+
+    # Inject virtual "Liked Songs" playlist at the top if user has saved tracks
+    try:
+        liked_count = await get_liked_tracks_count(access_token)
+    except Exception:
+        liked_count = 0
+
+    if liked_count >= 10:
+        liked_playlist = {
+            "id": "liked-songs",
+            "name": "Liked Songs",
+            "images": [{"url": ""}],  # template will render a heart fallback
+            "tracks": {"total": liked_count},
+        }
+        playlists.insert(0, liked_playlist)
 
     return templates.TemplateResponse(
         request,

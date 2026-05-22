@@ -1,8 +1,5 @@
 """Game router: game arena, answer validation, and results."""
 
-import time
-from typing import Any
-
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -14,7 +11,13 @@ from app.dependencies import (
     token_needs_refresh,
 )
 from app.models.session import GameSession
-from app.services.spotify import get_playlist_tracks, refresh_access_token
+from app.services.spotify import (
+    get_playlist_tracks,
+    get_liked_tracks,
+    refresh_access_token,
+    SpotifyAuthError,
+    SpotifyQuotaError,
+)
 from app.services.game_logic import generate_round, process_answer
 
 router = APIRouter()
@@ -45,13 +48,22 @@ async def _ensure_token(request: Request) -> str:
 async def game_arena(request: Request, playlist_id: str) -> HTMLResponse | RedirectResponse:
     """Initialize or resume a game for the given playlist."""
     access_token = await _ensure_token(request)
-    session = get_session(request)
     game = get_game_session(request)
 
     # If starting a new game or switching playlists, reset state
     if game.playlist_id != playlist_id or game.is_game_over():
         try:
-            tracks = await get_playlist_tracks(access_token, playlist_id)
+            if playlist_id == "liked-songs":
+                tracks = await get_liked_tracks(access_token)
+            else:
+                tracks = await get_playlist_tracks(access_token, playlist_id)
+        except SpotifyAuthError:
+            return RedirectResponse(url="/login")
+        except SpotifyQuotaError as exc:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Spotify quota error: {exc}",
+            )
         except Exception as exc:
             raise HTTPException(
                 status_code=400,
@@ -133,7 +145,6 @@ async def next_round(request: Request) -> JSONResponse:
 @router.get("/results", response_class=HTMLResponse, response_model=None)
 async def results(request: Request) -> HTMLResponse | RedirectResponse:
     """Render the endgame analytics screen."""
-    session = get_session(request)
     game = get_game_session(request)
 
     if not game.round_results:

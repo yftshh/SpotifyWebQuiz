@@ -20,6 +20,7 @@ SCOPES = " ".join(
         "user-read-playback-state",
         "streaming",
         "user-modify-playback-state",
+        "user-library-read",
     ]
 )
 
@@ -90,7 +91,7 @@ async def spotify_api_get(
             f"{SPOTIFY_API_BASE}{endpoint}",
             headers={"Authorization": f"Bearer {access_token}"},
             params=params or {},
-            timeout=30.0,
+            timeout=60.0,
         )
         if response.status_code in (401, 403):
             body = response.text or ""
@@ -114,13 +115,46 @@ async def get_user_playlists(access_token: str) -> list[dict[str, Any]]:
     return [pl for pl in items if pl.get("tracks", {}).get("total", 0) >= 10]
 
 
+_MAX_TRACKS = 2000  # Cap to avoid unbounded memory / load time
+
+
+def _parse_track_item(item: dict[str, Any]) -> dict[str, Any] | None:
+    """Extract normalized track dict from a Spotify track item."""
+    track = item.get("track")
+    if not track:
+        return None
+    if track.get("is_local"):
+        return None
+    uri = track.get("uri")
+    if not uri or not uri.startswith("spotify:track:"):
+        return None
+    name = track.get("name")
+    if not name:
+        return None
+
+    album = track.get("album", {})
+    images = album.get("images", [])
+    cover_url = images[0]["url"] if images else ""
+
+    artists = track.get("artists", [])
+    artist_name = artists[0]["name"] if artists else "Unknown Artist"
+
+    return {
+        "id": track["id"],
+        "uri": uri,
+        "name": name,
+        "artist": artist_name,
+        "album_cover": cover_url,
+    }
+
+
 async def get_playlist_tracks(access_token: str, playlist_id: str) -> list[dict[str, Any]]:
-    """Fetch all tracks from a playlist with valid URIs."""
+    """Fetch tracks from a playlist with valid URIs (capped at _MAX_TRACKS)."""
     tracks: list[dict[str, Any]] = []
     offset = 0
     limit = 100
 
-    while True:
+    while len(tracks) < _MAX_TRACKS:
         data = await spotify_api_get(
             f"/playlists/{playlist_id}/tracks",
             access_token,
@@ -131,35 +165,47 @@ async def get_playlist_tracks(access_token: str, playlist_id: str) -> list[dict[
             break
 
         for item in items:
-            track = item.get("track")
-            if not track:
-                continue
-            if track.get("is_local"):
-                continue
-            uri = track.get("uri")
-            if not uri or not uri.startswith("spotify:track:"):
-                continue
-            # Ensure we have preview data / name
-            name = track.get("name")
-            if not name:
-                continue
+            parsed = _parse_track_item(item)
+            if parsed:
+                tracks.append(parsed)
+                if len(tracks) >= _MAX_TRACKS:
+                    break
 
-            album = track.get("album", {})
-            images = album.get("images", [])
-            cover_url = images[0]["url"] if images else ""
+        if len(items) < limit:
+            break
+        offset += limit
 
-            artists = track.get("artists", [])
-            artist_name = artists[0]["name"] if artists else "Unknown Artist"
+    return tracks
 
-            tracks.append(
-                {
-                    "id": track["id"],
-                    "uri": uri,
-                    "name": name,
-                    "artist": artist_name,
-                    "album_cover": cover_url,
-                }
-            )
+
+async def get_liked_tracks_count(access_token: str) -> int:
+    """Return total number of user's saved tracks."""
+    data = await spotify_api_get("/me/tracks", access_token, {"limit": 1})
+    return data.get("total", 0)
+
+
+async def get_liked_tracks(access_token: str) -> list[dict[str, Any]]:
+    """Fetch user's liked songs (capped at _MAX_TRACKS)."""
+    tracks: list[dict[str, Any]] = []
+    offset = 0
+    limit = 100
+
+    while len(tracks) < _MAX_TRACKS:
+        data = await spotify_api_get(
+            "/me/tracks",
+            access_token,
+            {"limit": limit, "offset": offset},
+        )
+        items = data.get("items", [])
+        if not items:
+            break
+
+        for item in items:
+            parsed = _parse_track_item(item)
+            if parsed:
+                tracks.append(parsed)
+                if len(tracks) >= _MAX_TRACKS:
+                    break
 
         if len(items) < limit:
             break
