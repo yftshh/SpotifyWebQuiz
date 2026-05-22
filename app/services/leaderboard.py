@@ -13,15 +13,15 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "leaderboard.db")
 _lock = asyncio.Lock()
 
 
-async def _get_db() -> aiosqlite.Connection:
-    """Return an open DB connection."""
-    return await aiosqlite.connect(DB_PATH)
+def _get_db() -> aiosqlite.Connection:
+    """Return a DB connection context manager."""
+    return aiosqlite.connect(DB_PATH)
 
 
 async def init_db() -> None:
     """Create leaderboard table if it doesn't exist."""
     async with _lock:
-        async with await _get_db() as db:
+        async with _get_db() as db:
             await db.execute(
                 """
                 CREATE TABLE IF NOT EXISTS leaderboard (
@@ -43,7 +43,7 @@ async def add_score(
 ) -> None:
     """Insert a new game result."""
     async with _lock:
-        async with await _get_db() as db:
+        async with _get_db() as db:
             await db.execute(
                 """
                 INSERT INTO leaderboard (player_name, playlist_name, score, accuracy, rounds)
@@ -57,7 +57,7 @@ async def add_score(
 async def get_top_scores(limit: int = 50) -> list[dict[str, Any]]:
     """Return top scores ordered by score DESC."""
     async with _lock:
-        async with await _get_db() as db:
+        async with _get_db() as db:
             db.row_factory = aiosqlite.Row
             async with db.execute(
                 """
