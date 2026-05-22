@@ -39,19 +39,28 @@ def get_session(request: Request) -> dict[str, Any]:
 def set_session(response: Any, session: dict[str, Any]) -> None:
     """Attach the signed session cookie to a response object."""
     # FastAPI Response / RedirectResponse has set_cookie method
+    is_prod = settings.environment == "production"
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=_serialize_session(session),
         httponly=True,
-        secure=settings.environment == "production",
+        secure=is_prod,
         samesite="lax",
+        path="/",
         max_age=86400 * 7,  # 7 days
     )
 
 
 def clear_session(response: Any) -> None:
     """Clear the session cookie."""
-    response.delete_cookie(SESSION_COOKIE_NAME)
+    is_prod = settings.environment == "production"
+    response.delete_cookie(
+        key=SESSION_COOKIE_NAME,
+        httponly=True,
+        secure=is_prod,
+        samesite="lax",
+        path="/",
+    )
 
 
 def require_auth(request: Request) -> dict[str, Any]:

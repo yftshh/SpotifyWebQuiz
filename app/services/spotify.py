@@ -16,6 +16,7 @@ SCOPES = " ".join(
     [
         "user-read-private",
         "user-read-email",
+        "playlist-read-private",
         "user-read-playback-state",
         "streaming",
         "user-modify-playback-state",
@@ -73,6 +74,10 @@ async def spotify_api_get(
             params=params or {},
             timeout=30.0,
         )
+        if response.status_code in (401, 403):
+            raise PermissionError(
+                f"Spotify API {endpoint} returned {response.status_code}: {response.text}"
+            )
         response.raise_for_status()
         return response.json()
 

@@ -1,11 +1,14 @@
 """Authentication router: Spotify OAuth2 flow."""
 
+import logging
 import time
 import urllib.parse
 from typing import Any
 
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
+
+logger = logging.getLogger(__name__)
 
 from app.config import settings
 from app.dependencies import (
@@ -32,7 +35,7 @@ async def login(request: Request) -> RedirectResponse:
         "response_type": "code",
         "redirect_uri": settings.spotify_redirect_uri,
         "scope": SCOPES,
-        "show_dialog": "false",
+        "show_dialog": "true",
     }
     url = f"{AUTHORIZE_URL}?{urllib.parse.urlencode(params)}"
     return RedirectResponse(url)
@@ -42,12 +45,21 @@ async def login(request: Request) -> RedirectResponse:
 async def callback(request: Request, code: str | None = None, error: str | None = None) -> RedirectResponse:
     """Handle Spotify OAuth callback and store tokens in session."""
     if error or not code:
+        logger.warning("Spotify callback error: %s", error)
         raise HTTPException(status_code=400, detail=f"Spotify auth error: {error}")
 
     token_data = await exchange_code(code)
     access_token = token_data.get("access_token")
     refresh_token = token_data.get("refresh_token")
     expires_in = token_data.get("expires_in", 3600)
+    scope = token_data.get("scope", "")
+
+    logger.info(
+        "Spotify token exchange OK — access_token present=%s refresh_token present=%s scope=%s",
+        bool(access_token),
+        bool(refresh_token),
+        scope,
+    )
 
     if not access_token:
         raise HTTPException(status_code=400, detail="Failed to retrieve access token")
@@ -57,8 +69,9 @@ async def callback(request: Request, code: str | None = None, error: str | None 
     session["refresh_token"] = refresh_token
     session["expires_at"] = int(time.time()) + expires_in
 
-    response = RedirectResponse(url="/")
+    response = RedirectResponse(url="/", status_code=302)
     set_session(response, session)
+    logger.info("Callback redirecting to / with session cookie set")
     return response
 
 
@@ -94,3 +107,17 @@ async def logout() -> RedirectResponse:
     response = RedirectResponse(url="/")
     clear_session(response)
     return response
+
+
+@router.get("/api/debug-session")
+async def debug_session(request: Request) -> JSONResponse:
+    """Return current session contents for troubleshooting (no secrets)."""
+    session = get_session(request)
+    return JSONResponse(
+        {
+            "has_access_token": bool(session.get("access_token")),
+            "has_refresh_token": bool(session.get("refresh_token")),
+            "expires_at": session.get("expires_at"),
+            "cookie_present": bool(request.cookies.get("spotifywebquiz_session")),
+        }
+    )
