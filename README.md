@@ -134,6 +134,8 @@ http://localhost:8000/callback
 
 ## Running the Application
 
+### Local Development
+
 ```bash
 # Development (with auto-reload)
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -143,6 +145,30 @@ gunicorn app.main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
 ```
 
 Open your browser at **http://localhost:8000**.
+
+### Deploying to Render.com (Recommended)
+
+> **Note:** Vercel is designed primarily for frontend frameworks (React, Next.js, static sites). It does not natively support Python FastAPI backends with server-side sessions. For this project, use **Render.com** instead.
+
+1. **Push your code to GitHub** (make sure `.env` is in `.gitignore`).
+2. Go to [render.com](https://render.com) and click **"New +" → "Web Service"**.
+3. Connect your GitHub repository.
+4. Use these settings:
+   - **Runtime**: Python 3
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port 10000`
+5. Add **Environment Variables** in the Render dashboard:
+   - `SPOTIFY_CLIENT_ID` — from Spotify Dashboard
+   - `SPOTIFY_CLIENT_SECRET` — from Spotify Dashboard
+   - `SPOTIFY_REDIRECT_URI` — `https://your-app-name.onrender.com/callback`
+   - `SECRET_KEY` — generate with `python -c "import secrets; print(secrets.token_urlsafe(32))"`
+6. In your [Spotify Dashboard](https://developer.spotify.com/dashboard), add the Render URL to **Redirect URIs**:
+   ```
+   https://your-app-name.onrender.com/callback
+   ```
+7. Click **Deploy**.
+
+Alternatively, you can use the included `render.yaml` for [Render Blueprints](https://render.com/docs/blueprint-spec) (Infrastructure as Code).
 
 ---
 
