@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     spotify_client_secret: str
     spotify_redirect_uri: str = "http://localhost:8000/callback"
     secret_key: str
+    environment: str = "development"
 
     class Config:
         env_file = ".env"

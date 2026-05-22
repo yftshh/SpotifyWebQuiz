@@ -43,7 +43,7 @@ def set_session(response: Any, session: dict[str, Any]) -> None:
         key=SESSION_COOKIE_NAME,
         value=_serialize_session(session),
         httponly=True,
-        secure=False,  # Set True in production with HTTPS
+        secure=settings.environment == "production",
         samesite="lax",
         max_age=86400 * 7,  # 7 days
     )

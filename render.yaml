@@ -12,3 +12,5 @@ services:
         value: https://spotifywebquiz.onrender.com/callback
       - key: SECRET_KEY
         generateValue: true
+      - key: ENVIRONMENT
+        value: production
