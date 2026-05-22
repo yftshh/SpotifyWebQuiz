@@ -79,21 +79,21 @@ class SpotifyQuotaError(SpotifyAPIError):
     pass
 
 
-async def fetch_itunes_preview(artist: str, track: str) -> str | None:
-    """Fetch 30s preview URL from iTunes Search API as a fallback."""
+async def fetch_deezer_preview(artist: str, track: str) -> str | None:
+    """Fetch 30s preview URL from Deezer API as a fallback."""
     query = f"{artist} {track}"
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
-                "https://itunes.apple.com/search",
-                params={"term": query, "limit": 1, "media": "music"},
+                "https://api.deezer.com/search",
+                params={"q": query, "limit": 1},
                 timeout=10.0,
             )
             response.raise_for_status()
             data = response.json()
-            results = data.get("results", [])
+            results = data.get("data", [])
             if results:
-                return results[0].get("previewUrl")
+                return results[0].get("preview")
         except Exception:
             pass
     return None
@@ -137,7 +137,8 @@ _MAX_TRACKS = 2000  # Cap to avoid unbounded memory / load time
 
 def _parse_track_item(item: dict[str, Any]) -> dict[str, Any] | None:
     """Extract normalized track dict from a Spotify track item."""
-    track = item.get("track")
+    # Spotify API may return the track under either "track" or "item"
+    track = item.get("track") or item.get("item")
     if not track:
         return None
     if track.get("is_local"):

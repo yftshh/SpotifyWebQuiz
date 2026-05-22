@@ -1,12 +1,11 @@
 """Game mechanics: track selection, scoring, and round generation."""
 
-import asyncio
 import random
 import time
 from typing import Any
 
 from app.models.session import GameSession, RoundResult
-from app.services.spotify import fetch_itunes_preview
+from app.services.spotify import fetch_deezer_preview
 
 
 async def generate_round(game: GameSession) -> dict[str, Any]:
@@ -16,22 +15,29 @@ async def generate_round(game: GameSession) -> dict[str, Any]:
         # Not enough tracks left; reset played pool (shouldn't happen with 10 rounds)
         available = game.tracks.copy()
 
-    # Target must have a preview_url so it can be played
-    targets_with_preview = [t for t in available if t.get("preview_url")]
-    if not targets_with_preview:
+    # Spotify preview_url is deprecated and always null.
+    # Try candidates in random order until Deezer returns a preview.
+    target: dict[str, Any] | None = None
+    preview_url: str | None = None
+    shuffled = available.copy()
+    random.shuffle(shuffled)
+    for candidate in shuffled:
+        try:
+            preview_url = await fetch_deezer_preview(
+                candidate.get("artist", ""), candidate.get("name", "")
+            )
+        except Exception:
+            preview_url = None
+        if preview_url:
+            target = candidate
+            break
+
+    if not target:
         raise ValueError("No tracks with preview available")
-    target = random.choice(targets_with_preview)
+
     game.played_track_ids.append(target["id"])
     game.current_target_id = target["id"]
     game.current_target_uri = target["uri"]
-
-    # Fallback to iTunes preview if Spotify preview_url is missing
-    preview_url = target.get("preview_url")
-    if not preview_url:
-        try:
-            preview_url = await fetch_itunes_preview(target.get("artist", ""), target.get("name", ""))
-        except Exception:
-            preview_url = None
     game.current_target_preview_url = preview_url
     game.current_round += 1
 
@@ -54,7 +60,7 @@ async def generate_round(game: GameSession) -> dict[str, Any]:
         "round": game.current_round,
         "total_rounds": game.total_rounds,
         "target_uri": target["uri"],
-        "target_preview_url": target.get("preview_url"),
+        "target_preview_url": preview_url,
         "options": game.current_options,
         "combo": game.combo,
         "score": game.score,
