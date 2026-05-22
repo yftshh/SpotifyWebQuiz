@@ -26,8 +26,9 @@ async def menu_page(request: Request) -> HTMLResponse:
 
     player_name = session.get("player_name", "Player")
     return templates.TemplateResponse(
+        request,
         "menu.html",
-        {"request": request, "player_name": player_name},
+        {"player_name": player_name},
     )
 
 
@@ -36,8 +37,9 @@ async def leaderboard_page(request: Request) -> HTMLResponse:
     """Global leaderboard page."""
     scores = await get_top_scores(limit=50)
     return templates.TemplateResponse(
+        request,
         "leaderboard.html",
-        {"request": request, "scores": scores},
+        {"scores": scores},
     )
 
 
