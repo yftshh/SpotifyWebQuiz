@@ -5,7 +5,13 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
-from app.routers import auth, dashboard, game
+from app.routers import auth, dashboard, game, leaderboard as leaderboard_router
+from app.services.leaderboard import init_db
+
+
+async def _init_db() -> None:
+    """Initialize SQLite leaderboard on startup."""
+    await init_db()
 
 
 def create_app() -> FastAPI:
@@ -30,6 +36,11 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(dashboard.router)
     app.include_router(game.router)
+    app.include_router(leaderboard_router.router)
+
+    @app.on_event("startup")
+    async def startup() -> None:
+        await _init_db()
 
     return app
 

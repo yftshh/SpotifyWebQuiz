@@ -1,13 +1,15 @@
 """Game mechanics: track selection, scoring, and round generation."""
 
+import asyncio
 import random
 import time
 from typing import Any
 
 from app.models.session import GameSession, RoundResult
+from app.services.spotify import fetch_itunes_preview
 
 
-def generate_round(game: GameSession) -> dict[str, Any]:
+async def generate_round(game: GameSession) -> dict[str, Any]:
     """Select target + 3 decoys and update game session state."""
     available = [t for t in game.tracks if t["id"] not in game.played_track_ids]
     if len(available) < 4:
@@ -22,7 +24,15 @@ def generate_round(game: GameSession) -> dict[str, Any]:
     game.played_track_ids.append(target["id"])
     game.current_target_id = target["id"]
     game.current_target_uri = target["uri"]
-    game.current_target_preview_url = target.get("preview_url")
+
+    # Fallback to iTunes preview if Spotify preview_url is missing
+    preview_url = target.get("preview_url")
+    if not preview_url:
+        try:
+            preview_url = await fetch_itunes_preview(target.get("artist", ""), target.get("name", ""))
+        except Exception:
+            preview_url = None
+    game.current_target_preview_url = preview_url
     game.current_round += 1
 
     # Select 3 unique decoys

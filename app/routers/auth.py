@@ -17,6 +17,7 @@ from app.services.spotify import (
     SCOPES,
     exchange_code,
     refresh_access_token,
+    spotify_api_get,
 )
 
 router = APIRouter()
@@ -63,8 +64,17 @@ async def callback(request: Request, code: str | None = None, error: str | None 
     request.session["refresh_token"] = refresh_token
     request.session["expires_at"] = int(time.time()) + expires_in
 
-    logger.info("Callback redirecting to / with session cookie set")
-    return RedirectResponse(url="/", status_code=302)
+    # Fetch Spotify profile to get display_name
+    try:
+        profile = await spotify_api_get("/me", access_token)
+        display_name = profile.get("display_name") or profile.get("id") or "Player"
+        request.session["player_name"] = display_name
+    except Exception as exc:
+        logger.warning("Failed to fetch Spotify profile: %s", exc)
+        request.session["player_name"] = "Player"
+
+    logger.info("Callback redirecting to /menu with session cookie set")
+    return RedirectResponse(url="/menu", status_code=302)
 
 
 @router.post("/api/refresh-token")

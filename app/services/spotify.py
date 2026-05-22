@@ -79,6 +79,26 @@ class SpotifyQuotaError(SpotifyAPIError):
     pass
 
 
+async def fetch_itunes_preview(artist: str, track: str) -> str | None:
+    """Fetch 30s preview URL from iTunes Search API as a fallback."""
+    query = f"{artist} {track}"
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                "https://itunes.apple.com/search",
+                params={"term": query, "limit": 1, "media": "music"},
+                timeout=10.0,
+            )
+            response.raise_for_status()
+            data = response.json()
+            results = data.get("results", [])
+            if results:
+                return results[0].get("previewUrl")
+        except Exception:
+            pass
+    return None
+
+
 async def spotify_api_get(
     endpoint: str, access_token: str, params: dict[str, Any] | None = None
 ) -> dict[str, Any]:
