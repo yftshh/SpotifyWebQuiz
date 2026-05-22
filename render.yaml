@@ -9,6 +9,6 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: SPOTIFY_REDIRECT_URI
-        value: https://spotify-web-quiz.onrender.com/callback
+        value: https://spotifywebquiz.onrender.com/callback
       - key: SECRET_KEY
         generateValue: true
