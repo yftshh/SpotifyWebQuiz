@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from app.dependencies import get_session, require_auth, token_needs_refresh, set_session
+from app.dependencies import get_session, require_auth, token_needs_refresh
 from app.services.spotify import get_user_playlists, refresh_access_token, SpotifyQuotaError, SpotifyAuthError
 
 router = APIRouter()
@@ -42,15 +42,12 @@ async def dashboard(request: Request) -> HTMLResponse | RedirectResponse:
         playlists = await get_user_playlists(access_token)
     except SpotifyQuotaError as exc:
         logger.warning("Spotify quota error (app not approved for public use): %s", exc)
-        response = templates.TemplateResponse(
+        return templates.TemplateResponse(
             request,
             "quota_error.html",
             {},
             status_code=403,
         )
-        if session_modified:
-            set_session(response, session)
-        return response
     except SpotifyAuthError as exc:
         logger.warning("Spotify auth error (missing scope or expired token): %s", exc)
         # Force re-authorisation so user can grant required scopes
@@ -58,17 +55,14 @@ async def dashboard(request: Request) -> HTMLResponse | RedirectResponse:
     except Exception as exc:
         logger.exception("Failed to fetch user playlists")
         # Unexpected error — keep session and show generic error page
-        response = templates.TemplateResponse(
+        return templates.TemplateResponse(
             request,
             "error.html",
             {"detail": "Unable to load playlists. Please try again later."},
             status_code=500,
         )
-        if session_modified:
-            set_session(response, session)
-        return response
 
-    response = templates.TemplateResponse(
+    return templates.TemplateResponse(
         request,
         "dashboard.html",
         {
@@ -76,6 +70,3 @@ async def dashboard(request: Request) -> HTMLResponse | RedirectResponse:
             "access_token": access_token,
         },
     )
-    if session_modified:
-        set_session(response, session)
-    return response

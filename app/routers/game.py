@@ -11,7 +11,6 @@ from app.dependencies import (
     get_session,
     get_game_session,
     save_game_session,
-    set_session,
     token_needs_refresh,
 )
 from app.models.session import GameSession
@@ -36,9 +35,9 @@ async def _ensure_token(request: Request) -> str:
             new_access = token_data.get("access_token")
             if new_access:
                 access_token = new_access
-                session["access_token"] = new_access
+                request.session["access_token"] = new_access
                 if token_data.get("refresh_token"):
-                    session["refresh_token"] = token_data["refresh_token"]
+                    request.session["refresh_token"] = token_data["refresh_token"]
     return access_token
 
 
@@ -86,7 +85,8 @@ async def game_arena(request: Request, playlist_id: str) -> HTMLResponse | Redir
         }
 
     # Persist game state
-    response = templates.TemplateResponse(
+    save_game_session(request, game)
+    return templates.TemplateResponse(
         request,
         "game.html",
         {
@@ -94,8 +94,6 @@ async def game_arena(request: Request, playlist_id: str) -> HTMLResponse | Redir
             "round_data": round_data,
         },
     )
-    save_game_session(response, session, game)
-    return response
 
 
 @router.post("/api/check-answer")
@@ -105,7 +103,6 @@ async def check_answer(request: Request) -> JSONResponse:
     choice_id: str = body.get("choice_id", "")
     elapsed_ms: int = body.get("elapsed_ms", 15000)
 
-    session = get_session(request)
     game = get_game_session(request)
 
     if not game.current_target_id:
@@ -116,24 +113,21 @@ async def check_answer(request: Request) -> JSONResponse:
     # If game over, persist final state and return flag
     is_over = game.is_game_over()
 
-    response = JSONResponse({**result, "game_over": is_over})
-    save_game_session(response, session, game)
-    return response
+    save_game_session(request, game)
+    return JSONResponse({**result, "game_over": is_over})
 
 
 @router.get("/api/next-round")
 async def next_round(request: Request) -> JSONResponse:
     """Generate the next round and return round data."""
-    session = get_session(request)
     game = get_game_session(request)
 
     if game.is_game_over():
         return JSONResponse({"game_over": True})
 
     round_data = generate_round(game)
-    response = JSONResponse({**round_data, "game_over": False})
-    save_game_session(response, session, game)
-    return response
+    save_game_session(request, game)
+    return JSONResponse({**round_data, "game_over": False})
 
 
 @router.get("/results", response_class=HTMLResponse, response_model=None)

@@ -1,66 +1,26 @@
 """Session and auth dependency injection."""
 
-import json
 import time
 from typing import Any
 
 from fastapi import Request, HTTPException
-from itsdangerous import URLSafeSerializer, BadSignature
 
-from app.config import settings
 from app.models.session import GameSession, RoundResult
 
 
-SERIALIZER = URLSafeSerializer(settings.secret_key)
-SESSION_COOKIE_NAME = "spotifywebquiz_session"
-
-
-def _serialize_session(data: dict[str, Any]) -> str:
-    """Serialize session dict to signed cookie string."""
-    return SERIALIZER.dumps(data)
-
-
-def _deserialize_session(cookie: str) -> dict[str, Any]:
-    """Deserialize signed cookie string to session dict."""
-    try:
-        return SERIALIZER.loads(cookie)
-    except BadSignature:
-        return {}
-
-
 def get_session(request: Request) -> dict[str, Any]:
-    """Extract and decode the session from the request cookie."""
-    cookie = request.cookies.get(SESSION_COOKIE_NAME, "")
-    if not cookie:
-        return {}
-    return _deserialize_session(cookie)
+    """Extract session dict from request (starlette SessionMiddleware)."""
+    return dict(request.session)
 
 
 def set_session(response: Any, session: dict[str, Any]) -> None:
-    """Attach the signed session cookie to a response object."""
-    # FastAPI Response / RedirectResponse has set_cookie method
-    is_prod = settings.environment == "production"
-    response.set_cookie(
-        key=SESSION_COOKIE_NAME,
-        value=_serialize_session(session),
-        httponly=True,
-        secure=is_prod,
-        samesite="lax",
-        path="/",
-        max_age=86400 * 7,  # 7 days
-    )
+    """No-op: starlette SessionMiddleware auto-saves request.session on response."""
+    pass
 
 
 def clear_session(response: Any) -> None:
-    """Clear the session cookie."""
-    is_prod = settings.environment == "production"
-    response.delete_cookie(
-        key=SESSION_COOKIE_NAME,
-        httponly=True,
-        secure=is_prod,
-        samesite="lax",
-        path="/",
-    )
+    """No-op: session clearing is handled via request.session.clear() in the route."""
+    pass
 
 
 def require_auth(request: Request) -> dict[str, Any]:
@@ -95,9 +55,9 @@ def get_game_session(request: Request) -> GameSession:
     return game
 
 
-def save_game_session(response: Any, session: dict[str, Any], game: GameSession) -> None:
+def save_game_session(request: Request, game: GameSession) -> None:
     """Persist game state back into the session cookie."""
-    session["game"] = {
+    request.session["game"] = {
         "playlist_id": game.playlist_id,
         "tracks": game.tracks,
         "played_track_ids": game.played_track_ids,
@@ -122,7 +82,6 @@ def save_game_session(response: Any, session: dict[str, Any], game: GameSession)
         "current_options": game.current_options,
         "round_start_time_ms": game.round_start_time_ms,
     }
-    set_session(response, session)
 
 
 def token_needs_refresh(session: dict[str, Any]) -> bool:

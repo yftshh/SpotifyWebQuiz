@@ -11,12 +11,7 @@ from fastapi.responses import RedirectResponse, JSONResponse
 logger = logging.getLogger(__name__)
 
 from app.config import settings
-from app.dependencies import (
-    get_session,
-    set_session,
-    clear_session,
-    token_needs_refresh,
-)
+from app.dependencies import get_session, token_needs_refresh
 from app.services.spotify import (
     AUTHORIZE_URL,
     SCOPES,
@@ -64,15 +59,12 @@ async def callback(request: Request, code: str | None = None, error: str | None 
     if not access_token:
         raise HTTPException(status_code=400, detail="Failed to retrieve access token")
 
-    session = get_session(request)
-    session["access_token"] = access_token
-    session["refresh_token"] = refresh_token
-    session["expires_at"] = int(time.time()) + expires_in
+    request.session["access_token"] = access_token
+    request.session["refresh_token"] = refresh_token
+    request.session["expires_at"] = int(time.time()) + expires_in
 
-    response = RedirectResponse(url="/", status_code=302)
-    set_session(response, session)
     logger.info("Callback redirecting to / with session cookie set")
-    return response
+    return RedirectResponse(url="/", status_code=302)
 
 
 @router.post("/api/refresh-token")
@@ -91,22 +83,19 @@ async def api_refresh_token(request: Request) -> JSONResponse:
     if not new_access_token:
         raise HTTPException(status_code=400, detail="Token refresh failed")
 
-    session["access_token"] = new_access_token
+    request.session["access_token"] = new_access_token
     if new_refresh_token:
-        session["refresh_token"] = new_refresh_token
-    session["expires_at"] = int(time.time()) + expires_in
+        request.session["refresh_token"] = new_refresh_token
+    request.session["expires_at"] = int(time.time()) + expires_in
 
-    response = JSONResponse({"access_token": new_access_token})
-    set_session(response, session)
-    return response
+    return JSONResponse({"access_token": new_access_token})
 
 
 @router.get("/logout", response_model=None)
-async def logout() -> RedirectResponse:
+async def logout(request: Request) -> RedirectResponse:
     """Clear session and redirect to home."""
-    response = RedirectResponse(url="/")
-    clear_session(response)
-    return response
+    request.session.clear()
+    return RedirectResponse(url="/")
 
 
 @router.get("/api/debug-session")
