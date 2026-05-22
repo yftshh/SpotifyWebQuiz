@@ -14,7 +14,11 @@ def generate_round(game: GameSession) -> dict[str, Any]:
         # Not enough tracks left; reset played pool (shouldn't happen with 10 rounds)
         available = game.tracks.copy()
 
-    target = random.choice(available)
+    # Target must have a preview_url so it can be played
+    targets_with_preview = [t for t in available if t.get("preview_url")]
+    if not targets_with_preview:
+        raise ValueError("No tracks with preview available")
+    target = random.choice(targets_with_preview)
     game.played_track_ids.append(target["id"])
     game.current_target_id = target["id"]
     game.current_target_uri = target["uri"]

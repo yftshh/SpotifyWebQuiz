@@ -137,8 +137,6 @@ def _parse_track_item(item: dict[str, Any]) -> dict[str, Any] | None:
     artist_name = artists[0]["name"] if artists else "Unknown Artist"
 
     preview_url = track.get("preview_url")
-    if not preview_url:
-        return None
 
     return {
         "id": track["id"],

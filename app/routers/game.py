@@ -75,20 +75,28 @@ async def game_arena(request: Request, playlist_id: str) -> HTMLResponse | Redir
                 detail=f"Failed to load playlist tracks: {exc}",
             )
 
-        if len(tracks) < 4:
+        tracks_with_preview = [t for t in tracks if t.get("preview_url")]
+        if len(tracks_with_preview) < 4:
             raise HTTPException(
                 status_code=400,
-                detail="Playlist must contain at least 4 valid tracks.",
+                detail="Playlist must contain at least 4 tracks with audio previews.",
             )
 
         # Cap tracks stored in session to avoid cookie overflow
         if len(tracks) > 100:
             tracks = random.sample(tracks, 100)
+            # Recompute after sampling to ensure we still have previews
+            tracks_with_preview = [t for t in tracks if t.get("preview_url")]
+            if len(tracks_with_preview) < 4:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Playlist must contain at least 4 tracks with audio previews.",
+                )
 
         game = GameSession(
             playlist_id=playlist_id,
             tracks=tracks,
-            total_rounds=min(10, len(tracks)),
+            total_rounds=min(10, len(tracks_with_preview)),
         )
 
     # Generate the current round data (or first round if new / corrupted)
