@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.dependencies import get_session, require_auth, token_needs_refresh, set_session
-from app.services.spotify import get_user_playlists, refresh_access_token
+from app.services.spotify import get_user_playlists, refresh_access_token, SpotifyQuotaError, SpotifyAuthError
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -40,8 +40,19 @@ async def dashboard(request: Request) -> HTMLResponse | RedirectResponse:
 
     try:
         playlists = await get_user_playlists(access_token)
-    except PermissionError as exc:
-        logger.warning("Spotify permission denied (missing scope or expired token): %s", exc)
+    except SpotifyQuotaError as exc:
+        logger.warning("Spotify quota error (app not approved for public use): %s", exc)
+        response = templates.TemplateResponse(
+            request,
+            "quota_error.html",
+            {},
+            status_code=403,
+        )
+        if session_modified:
+            set_session(response, session)
+        return response
+    except SpotifyAuthError as exc:
+        logger.warning("Spotify auth error (missing scope or expired token): %s", exc)
         # Force re-authorisation so user can grant required scopes
         return RedirectResponse(url="/login")
     except Exception as exc:

@@ -87,6 +87,31 @@ A production-ready musical quiz game built with **FastAPI**, **Jinja2**, **Tailw
 - A **Spotify Premium** account (required for Web Playback SDK streaming).
 - A registered **Spotify App** at [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard).
 
+> **Important:** By default, new Spotify apps are in **Development Mode**, which only allows up to 25 whitelisted users. To allow **anyone** to use your app (like https://app.spotiguess.com/), you must request an **Extension Quota**.
+
+---
+
+## Spotify Extension Quota (Required for Public Use)
+
+If users see an error like *"The user is not registered for this application"*, your app is still in Development Mode.
+
+### How to Request Extension Quota
+
+1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) and select your app.
+2. Navigate to **Settings** → **User Management** (or **Quota Extension**).
+3. Click **Request Extension**.
+4. Fill out the form:
+   - **Reason**: "Public web application for Spotify playlist guessing game. Users authenticate to access their private playlists and playback state."
+   - **Expected users**: Estimate (e.g., 100–1000).
+   - **Redirect URIs**: Ensure your production URL is listed (e.g., `https://your-app.onrender.com/callback`).
+5. Submit the request. Approval is usually automatic or takes 1–3 business days.
+
+### Temporary Workaround (Development Mode)
+
+While waiting for approval, you can manually add up to 25 users:
+- In the Dashboard, go to **User Management** → **Add new user**.
+- Enter their Spotify username or email.
+
 ---
 
 ## Installation

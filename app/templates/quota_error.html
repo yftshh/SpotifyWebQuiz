@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container text-center mt-5">
+    <h1 class="display-4">Access Restricted</h1>
+    <p class="lead mt-3">
+        This Spotify app is currently in <strong>Development Mode</strong>.
+    </p>
+    <p>
+        Only users added to the app's whitelist in the Spotify Developer Dashboard can use it right now.
+    </p>
+    <p class="mt-4">
+        <strong>To use this app:</strong>
+    </p>
+    <ol class="text-start d-inline-block">
+        <li>Ask the app owner to add your Spotify username to the whitelist in the <a href="https://developer.spotify.com/dashboard" target="_blank">Spotify Developer Dashboard</a>.</li>
+        <li>Or wait until the app requests and receives an <strong>Extension Quota</strong> to support all users.</li>
+    </ol>
+    <div class="mt-4">
+        <a href="/" class="btn btn-primary">Go Home</a>
+        <a href="/logout" class="btn btn-outline-secondary ms-2">Logout</a>
+    </div>
+</div>
+{% endblock %}

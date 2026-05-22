@@ -63,6 +63,24 @@ async def refresh_access_token(refresh_token: str) -> dict[str, Any]:
         return response.json()
 
 
+class SpotifyAPIError(Exception):
+    """Base exception for Spotify API errors."""
+
+    def __init__(self, message: str, status_code: int = 0) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class SpotifyAuthError(SpotifyAPIError):
+    """Raised when the user is not authorised or token is invalid."""
+    pass
+
+
+class SpotifyQuotaError(SpotifyAPIError):
+    """Raised when the app is in Development Mode and the user is not whitelisted."""
+    pass
+
+
 async def spotify_api_get(
     endpoint: str, access_token: str, params: dict[str, Any] | None = None
 ) -> dict[str, Any]:
@@ -75,8 +93,15 @@ async def spotify_api_get(
             timeout=30.0,
         )
         if response.status_code in (401, 403):
-            raise PermissionError(
-                f"Spotify API {endpoint} returned {response.status_code}: {response.text}"
+            body = response.text or ""
+            if "not registered for this application" in body:
+                raise SpotifyQuotaError(
+                    f"Spotify API {endpoint} returned {response.status_code}: {body}",
+                    status_code=response.status_code,
+                )
+            raise SpotifyAuthError(
+                f"Spotify API {endpoint} returned {response.status_code}: {body}",
+                status_code=response.status_code,
             )
         response.raise_for_status()
         return response.json()
