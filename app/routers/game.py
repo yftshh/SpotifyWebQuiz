@@ -17,6 +17,7 @@ from app.models.session import GameSession
 from app.services.spotify import (
     get_playlist_tracks,
     get_liked_tracks,
+    get_playlist_name,
     refresh_access_token,
     SpotifyAuthError,
     SpotifyQuotaError,
@@ -90,19 +91,31 @@ async def game_arena(request: Request, playlist_id: str) -> HTMLResponse | Redir
                     detail="Playlist must contain at least 4 tracks.",
                 )
 
+        playlist_name = "Liked Songs" if playlist_id == "liked-songs" else await get_playlist_name(access_token, playlist_id)
         game = GameSession(
             playlist_id=playlist_id,
+            playlist_name=playlist_name,
             tracks=tracks,
             total_rounds=min(10, len(tracks)),
+        )
+        logger.info(
+            "Game started: playlist_name='%s' playlist_id=%s tracks=%s total_rounds=%s",
+            game.playlist_name, playlist_id, len(tracks), game.total_rounds,
         )
 
     # Generate the current round data (or first round if new / corrupted)
     if game.current_round == 0 or not game.current_target_id or not game.current_options:
-        logger.info("Generating new round for playlist=%s round=%s target_id=%s", playlist_id, game.current_round, game.current_target_id)
+        logger.info(
+            "Generating new round: playlist_name='%s' round=%s target_id=%s",
+            game.playlist_name, game.current_round, game.current_target_id,
+        )
         round_data = await generate_round(game)
     else:
         # Resume existing round
-        logger.info("Resuming round for playlist=%s round=%s target_id=%s", playlist_id, game.current_round, game.current_target_id)
+        logger.info(
+            "Resuming round: playlist_name='%s' round=%s target_id=%s",
+            game.playlist_name, game.current_round, game.current_target_id,
+        )
         round_data = {
             "round": game.current_round,
             "total_rounds": game.total_rounds,
@@ -132,19 +145,35 @@ async def check_answer(request: Request) -> JSONResponse:
     elapsed_ms: int = body.get("elapsed_ms", 15000)
 
     game = get_game_session(request)
-    logger.info("check-answer: round=%s target_id=%s tracks=%s played=%s", game.current_round, game.current_target_id, len(game.tracks), len(game.played_track_ids))
+    logger.info(
+        "check-answer: playlist_name='%s' round=%s target_id=%s choice_id=%s tracks=%s played=%s",
+        game.playlist_name, game.current_round, game.current_target_id, choice_id,
+        len(game.tracks), len(game.played_track_ids),
+    )
 
     if not game.current_target_id:
         # Attempt to recover if tracks exist but round wasn't initialized
         if game.tracks and len(game.tracks) >= 4:
-            logger.warning("No active round but tracks exist; regenerating round")
+            logger.warning(
+                "No active round but tracks exist; regenerating round: playlist_name='%s'",
+                game.playlist_name,
+            )
             round_data = await generate_round(game)
             save_game_session(request, game)
             # Return current round data so client can retry
             return JSONResponse({**round_data, "game_over": False, "recovered": True})
+        logger.error(
+            "check-answer rejected: no active round and insufficient tracks: playlist_name='%s' tracks=%s",
+            game.playlist_name, len(game.tracks),
+        )
         raise HTTPException(status_code=400, detail="No active round")
 
     result = process_answer(game, choice_id, elapsed_ms)
+    logger.info(
+        "answer-processed: playlist_name='%s' round=%s correct=%s points=%s total_score=%s combo=%s",
+        game.playlist_name, game.current_round, result["correct"],
+        result["points"], result["total_score"], result["combo"],
+    )
 
     # If game over, persist final state and return flag
     is_over = game.is_game_over()
@@ -164,7 +193,11 @@ async def next_round(request: Request) -> JSONResponse:
     try:
         round_data = await generate_round(game)
     except ValueError as exc:
-        logger.error("Failed to generate round: %s", exc)
+        logger.error(
+            "Failed to generate next round: playlist_name='%s' round=%s played=%s tracks=%s error=%s",
+            game.playlist_name, game.current_round, len(game.played_track_ids),
+            len(game.tracks), exc,
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     save_game_session(request, game)

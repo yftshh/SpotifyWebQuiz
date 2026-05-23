@@ -22,6 +22,7 @@ class GameSession:
     """Mutable game state stored in the server-side session."""
 
     playlist_id: str = ""
+    playlist_name: str = ""
     tracks: list[dict[str, Any]] = field(default_factory=list)
     played_track_ids: list[str] = field(default_factory=list)
     current_round: int = 0

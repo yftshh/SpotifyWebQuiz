@@ -1,11 +1,14 @@
 """Async Spotify API client using httpx."""
 
 import base64
+import logging
 from typing import Any
 
 import httpx
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 SPOTIFY_API_BASE = "https://api.spotify.com/v1"
@@ -84,6 +87,7 @@ async def fetch_deezer_preview(artist: str, track: str) -> str | None:
     import urllib.parse
 
     query = urllib.parse.quote(f"{artist} {track}")
+    logger.debug("fetch_deezer_preview: query='%s' (artist='%s' track='%s')", query, artist, track)
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
@@ -97,9 +101,11 @@ async def fetch_deezer_preview(artist: str, track: str) -> str | None:
             for result in results:
                 preview = result.get("preview")
                 if preview:
+                    logger.debug("fetch_deezer_preview: found preview=%s", preview)
                     return preview
-        except Exception:
-            pass
+            logger.debug("fetch_deezer_preview: no preview in %s results", len(results))
+        except Exception as exc:
+            logger.warning("fetch_deezer_preview: error for query='%s': %s", query, exc)
     return None
 
 
@@ -127,6 +133,15 @@ async def spotify_api_get(
             )
         response.raise_for_status()
         return response.json()
+
+
+async def get_playlist_name(access_token: str, playlist_id: str) -> str:
+    """Fetch playlist name by ID."""
+    try:
+        data = await spotify_api_get(f"/playlists/{playlist_id}", access_token, {"fields": "name"})
+        return data.get("name", playlist_id)
+    except Exception:
+        return playlist_id
 
 
 async def get_user_playlists(access_token: str) -> list[dict[str, Any]]:

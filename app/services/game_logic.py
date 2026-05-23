@@ -1,5 +1,6 @@
 """Game mechanics: track selection, scoring, and round generation."""
 
+import logging
 import random
 import time
 from typing import Any
@@ -7,12 +8,22 @@ from typing import Any
 from app.models.session import GameSession, RoundResult
 from app.services.spotify import fetch_deezer_preview
 
+logger = logging.getLogger(__name__)
+
 
 async def generate_round(game: GameSession) -> dict[str, Any]:
     """Select target + 3 decoys and update game session state."""
     available = [t for t in game.tracks if t["id"] not in game.played_track_ids]
+    logger.info(
+        "generate_round: playlist_name='%s' total_tracks=%s available=%s played=%s",
+        game.playlist_name, len(game.tracks), len(available), len(game.played_track_ids),
+    )
     if len(available) < 4:
         # Not enough tracks left; reset played pool (shouldn't happen with 10 rounds)
+        logger.warning(
+            "generate_round: available < 4, resetting played pool: playlist_name='%s'",
+            game.playlist_name,
+        )
         available = game.tracks.copy()
 
     # Spotify preview_url is deprecated and always null.
@@ -22,23 +33,45 @@ async def generate_round(game: GameSession) -> dict[str, Any]:
     shuffled = available.copy()
     random.shuffle(shuffled)
     for candidate in shuffled:
+        artist = candidate.get("artist", "")
+        name = candidate.get("name", "")
         try:
-            preview_url = await fetch_deezer_preview(
-                candidate.get("artist", ""), candidate.get("name", "")
+            preview_url = await fetch_deezer_preview(artist, name)
+        except Exception as exc:
+            logger.warning(
+                "generate_round: deezer error for '%s — %s': %s",
+                artist, name, exc,
             )
-        except Exception:
             preview_url = None
         if preview_url:
             target = candidate
+            logger.info(
+                "generate_round: selected target '%s — %s' preview=%s",
+                artist, name, preview_url,
+            )
             break
+        else:
+            logger.info(
+                "generate_round: no preview for '%s — %s'",
+                artist, name,
+            )
 
     if not target:
         # Fallback: pick the first candidate even without a preview so the
         # game can continue (frontend shows a "no preview" message).
         target = shuffled[0] if shuffled else None
         preview_url = None
+        if target:
+            logger.warning(
+                "generate_round: fallback without preview: playlist_name='%s' target='%s — %s'",
+                game.playlist_name, target.get("artist", ""), target.get("name", ""),
+            )
 
     if not target:
+        logger.error(
+            "generate_round: no target found: playlist_name='%s' available=%s shuffled=%s",
+            game.playlist_name, len(available), len(shuffled),
+        )
         raise ValueError("No tracks available")
 
     game.played_track_ids.append(target["id"])

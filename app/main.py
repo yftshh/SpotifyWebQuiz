@@ -1,10 +1,20 @@
 """FastAPI application factory."""
 
+import logging
+import sys
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
+
+# Configure root logger so app-level INFO/WARNING logs are visible
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    stream=sys.stdout,
+)
 from app.routers import auth, dashboard, game, leaderboard as leaderboard_router
 from app.services.leaderboard import init_db
 
