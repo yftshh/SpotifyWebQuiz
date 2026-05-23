@@ -1,11 +1,15 @@
 """Session and auth dependency injection."""
 
+import json
+import logging
 import time
 from typing import Any
 
 from fastapi import Request, HTTPException
 
 from app.models.session import GameSession, RoundResult
+
+logger = logging.getLogger(__name__)
 
 
 def get_session(request: Request) -> dict[str, Any]:
@@ -32,12 +36,18 @@ def require_auth(request: Request) -> dict[str, Any]:
     return session
 
 
+def _strip_album_covers(tracks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return a copy of tracks with album_cover removed to shrink session cookie."""
+    return [{k: v for k, v in t.items() if k != "album_cover"} for t in tracks]
+
+
 def get_game_session(request: Request) -> GameSession:
     """Dependency: retrieve or initialize game session from cookie."""
     session = get_session(request)
     game_data = session.get("game", {})
     game = GameSession(
         playlist_id=game_data.get("playlist_id", ""),
+        playlist_name=game_data.get("playlist_name", ""),
         tracks=game_data.get("tracks", []),
         played_track_ids=game_data.get("played_track_ids", []),
         current_round=game_data.get("current_round", 0),
@@ -57,10 +67,11 @@ def get_game_session(request: Request) -> GameSession:
 
 
 def save_game_session(request: Request, game: GameSession) -> None:
-    """Persist game state back into the session cookie."""
-    request.session["game"] = {
+    """Persist game state back into the session cookie (strip heavy fields)."""
+    payload = {
         "playlist_id": game.playlist_id,
-        "tracks": game.tracks,
+        "playlist_name": game.playlist_name,
+        "tracks": _strip_album_covers(game.tracks),
         "played_track_ids": game.played_track_ids,
         "current_round": game.current_round,
         "total_rounds": game.total_rounds,
@@ -84,6 +95,9 @@ def save_game_session(request: Request, game: GameSession) -> None:
         "current_options": game.current_options,
         "round_start_time_ms": game.round_start_time_ms,
     }
+    size = len(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+    logger.info("save_game_session: playlist_name='%s' tracks=%s payload_size=%s bytes", game.playlist_name, len(game.tracks), size)
+    request.session["game"] = payload
 
 
 def token_needs_refresh(session: dict[str, Any]) -> bool:
