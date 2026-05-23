@@ -81,19 +81,23 @@ class SpotifyQuotaError(SpotifyAPIError):
 
 async def fetch_deezer_preview(artist: str, track: str) -> str | None:
     """Fetch 30s preview URL from Deezer API as a fallback."""
-    query = f"{artist} {track}"
+    import urllib.parse
+
+    query = urllib.parse.quote(f"{artist} {track}")
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
                 "https://api.deezer.com/search",
-                params={"q": query, "limit": 1},
+                params={"q": query, "limit": 5},
                 timeout=10.0,
             )
             response.raise_for_status()
             data = response.json()
             results = data.get("data", [])
-            if results:
-                return results[0].get("preview")
+            for result in results:
+                preview = result.get("preview")
+                if preview:
+                    return preview
         except Exception:
             pass
     return None

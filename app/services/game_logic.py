@@ -33,7 +33,13 @@ async def generate_round(game: GameSession) -> dict[str, Any]:
             break
 
     if not target:
-        raise ValueError("No tracks with preview available")
+        # Fallback: pick the first candidate even without a preview so the
+        # game can continue (frontend shows a "no preview" message).
+        target = shuffled[0] if shuffled else None
+        preview_url = None
+
+    if not target:
+        raise ValueError("No tracks available")
 
     game.played_track_ids.append(target["id"])
     game.current_target_id = target["id"]

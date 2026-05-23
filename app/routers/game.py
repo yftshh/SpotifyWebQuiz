@@ -161,7 +161,12 @@ async def next_round(request: Request) -> JSONResponse:
     if game.is_game_over():
         return JSONResponse({"game_over": True})
 
-    round_data = await generate_round(game)
+    try:
+        round_data = await generate_round(game)
+    except ValueError as exc:
+        logger.error("Failed to generate round: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     save_game_session(request, game)
     return JSONResponse({**round_data, "game_over": False})
 
